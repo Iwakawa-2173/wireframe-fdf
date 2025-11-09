@@ -1,6 +1,6 @@
 # wireframe-fdf
 
-![Демонстрация результата](https://github.com/Iwakawa-2173/wireframe-fdf/blob/main/demonstration.mp4)
+![Демонстрация результата](https://github.com/Iwakawa-2173/wireframe-fdf/blob/main/d.gif)
 
 ## Описание
 Эта программа делает плавный переход отображений друг в друга двух карт высот на основе двух картинок.
