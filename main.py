@@ -1,34 +1,47 @@
 import pygame
-from pygame.locals import *
-from OpenGL.GL import *
-from OpenGL.GLU import *
+from pygame.locals import (
+    DOUBLEBUF, OPENGL,
+    MOUSEBUTTONDOWN, MOUSEBUTTONUP, QUIT
+)
+from OpenGL.GL import (
+    glBegin, glClear, glColor3f, glEnd, glLoadIdentity, glRotatef,
+    glTranslatef, glVertex3f, GL_COLOR_BUFFER_BIT, GL_DEPTH_BUFFER_BIT,
+    GL_LINE_STRIP
+)
+from OpenGL.GLU import gluPerspective
 
-# Данные высот для wireframe модели (эмуляция содержимого fdf)
-height_map = [
-    [0, 0, 0, 0, 0],
-    [0, 1, 0, 1, 0],
-    [0, 0, 2, 0, 0],
-    [0, 1, 0, 1, 0],
-    [0, 0, 0, 0, 0],
-]
+
+def load_height_map(filename):
+    height_map = []
+    try:
+        with open(filename, "r") as file:
+            line = file.readline()
+            while line:
+                row = [int(value) for value in line.strip().split()]
+                height_map.append(row)
+                line = file.readline()
+    except Exception as exc:
+        print(f"Ошибка при чтении файла {filename}: {exc}")
+    return height_map
+
 
 def draw_wireframe(grid):
     rows = len(grid)
+    if rows == 0:
+        return
     cols = len(grid[0])
     glColor3f(1, 1, 1)  # Белый цвет для линий
 
-    # Рисуем линии в направлении оси X, используя while вместо for
     y = 0
     while y < rows:
         glBegin(GL_LINE_STRIP)
         x = 0
         while x < cols:
-            glVertex3f(x, y, grid[y][x])  # Добавляем точку с высотой z=grid[y][x]
+            glVertex3f(x, y, grid[y][x])
             x += 1
         glEnd()
         y += 1
 
-    # Рисуем линии в направлении оси Y, используя while вместо for
     x = 0
     while x < cols:
         glBegin(GL_LINE_STRIP)
@@ -39,75 +52,80 @@ def draw_wireframe(grid):
         glEnd()
         x += 1
 
+
 def main():
     pygame.init()
     display = (800, 600)
-    screen = pygame.display.set_mode(display, DOUBLEBUF | OPENGL)
+    pygame.display.set_mode(display, DOUBLEBUF | OPENGL)
 
-    # Настройка перспективы и начального положения камеры
-    gluPerspective(45, (display[0] / display[1]), 0.1, 50.0)
-    glTranslatef(-2, -2, -15)
+    height_map = load_height_map("height_map.txt")
+    if not height_map:
+        height_map = [
+            [0, 0, 0, 0, 0],
+            [0, 1, 0, 1, 0],
+            [0, 0, 2, 0, 0],
+            [0, 1, 0, 1, 0],
+            [0, 0, 0, 0, 0],
+        ]
 
-    rot_x, rot_y = 25, 0              # Начальные углы вращения по осям X и Y
-    mouse_sensitivity = 0.3           # Чувствительность мыши
-    dragging = False                  # Флаг, удерживается ли левая кнопка мыши
+    rot_x, rot_y = 25, 0
+    mouse_sensitivity = 0.3
+    dragging = False
+    zoom = -15  # Начальное значение z камеры
 
-    pygame.mouse.set_visible(True)    # Мышь видима по умолчанию
-    pygame.event.set_grab(False)      # Мышь не захвачена по умолчанию
+    pygame.mouse.set_visible(True)
+    pygame.event.set_grab(False)
 
     clock = pygame.time.Clock()
 
     running = True
     while running:
-        # Получаем все события в списке
         events = pygame.event.get()
         i = 0
-        # Обрабатываем события циклом while
         while i < len(events):
             event = events[i]
             i += 1
 
-            if event.type == pygame.QUIT:  # Закрытие окна
+            if event.type == QUIT:
                 running = False
 
-            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                # Нажата левая кнопка - захватываем мышь
-                pygame.event.set_grab(True)
-                pygame.mouse.set_visible(False)
-                dragging = True
-                pygame.mouse.get_rel()  # Сброс смещения мыши
+            elif event.type == MOUSEBUTTONDOWN:
+                if event.button == 1:  # Левая кнопка мыши
+                    pygame.event.set_grab(True)
+                    pygame.mouse.set_visible(False)
+                    dragging = True
+                    pygame.mouse.get_rel()
+                elif event.button == 4:  # Колёсико вперед (приближение)
+                    zoom += 1.0
+                elif event.button == 5:  # Колёсико назад (отдаление)
+                    zoom -= 1.0
 
-            elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
-                # Отпущена левая кнопка - освобождаем мышь
+            elif event.type == MOUSEBUTTONUP and event.button == 1:
                 pygame.event.set_grab(False)
                 pygame.mouse.set_visible(True)
                 dragging = False
 
         if dragging:
-            # Получаем смещение мыши с последнего кадра
             dx, dy = pygame.mouse.get_rel()
-            # Изменяем углы вращения пропорционально смещению мыши
             rot_x += dy * mouse_sensitivity
             rot_y += dx * mouse_sensitivity
         else:
-            pygame.mouse.get_rel()  # Сброс смещения при отсутствии захвата мыши
+            pygame.mouse.get_rel()
 
-        # Сброс трансформаций модели
         glLoadIdentity()
-        # Настройка камеры и трансформаций вращения
-        gluPerspective(45, (display[0] / display[1]), 0.1, 50.0)
-        glTranslatef(-2, -2, -15)
-        glRotatef(rot_x, 1, 0, 0)  # Вращение по X
-        glRotatef(rot_y, 0, 1, 0)  # Вращение по Y
+        gluPerspective(45, display[0] / display[1], 0.1, 50.0)
+        glTranslatef(-2, -2, zoom)
+        glRotatef(rot_x, 1, 0, 0)
+        glRotatef(rot_y, 0, 1, 0)
 
-        # Очистка экрана и отрисовка каркасной модели
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         draw_wireframe(height_map)
 
-        pygame.display.flip()  # Обновление дисплея
-        clock.tick(60)         # Ограничение до 60 кадров в секунду
+        pygame.display.flip()
+        clock.tick(60)
 
     pygame.quit()
+
 
 if __name__ == "__main__":
     main()
